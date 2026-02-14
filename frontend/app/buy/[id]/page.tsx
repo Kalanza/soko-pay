@@ -11,6 +11,9 @@ import {
   CheckCircle,
   ShieldAlert,
   ShieldCheck,
+  Package,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { trackOrder, payForOrder } from '@/lib/api';
 import type { Order } from '@/lib/api';
@@ -30,11 +33,25 @@ export default function BuyPage() {
 
   const [buyerPhone, setBuyerPhone] = useState('');
   const [buyerName, setBuyerName] = useState('');
+  const [paymentInitiated, setPaymentInitiated] = useState(false);
+  const [trackingCopied, setTrackingCopied] = useState(false);
 
   useEffect(() => {
     loadOrder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
+
+  // Poll for payment status once payment is initiated
+  useEffect(() => {
+    if (!paymentInitiated) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await trackOrder(orderId);
+        setOrder(data);
+      } catch { /* ignore */ }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [paymentInitiated, orderId]);
 
   const loadOrder = async () => {
     try {
@@ -54,14 +71,23 @@ export default function BuyPage() {
 
     try {
       await payForOrder(orderId, buyerPhone, buyerName);
-      alert('Payment initiated! Check your phone for the M-Pesa prompt.');
-      window.location.href = `/track/${orderId}`;
+      setPaymentInitiated(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Payment failed. Please try again.';
       setError(message);
     } finally {
       setPaying(false);
     }
+  };
+
+  const trackingUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/track/${orderId}`
+    : `/track/${orderId}`;
+
+  const copyTrackingLink = () => {
+    navigator.clipboard.writeText(trackingUrl);
+    setTrackingCopied(true);
+    setTimeout(() => setTrackingCopied(false), 2000);
   };
 
   const inputClass =
@@ -99,6 +125,144 @@ export default function BuyPage() {
   }
 
   if (!order) return null;
+
+  /* ─── Payment initiated – waiting for M-Pesa ───── */
+  if (paymentInitiated) {
+    const isPaid = order.status === 'paid' || order.status === 'shipped' || order.status === 'completed';
+
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Navbar />
+        <main className="flex-1 px-4 py-10">
+          <div className="mx-auto max-w-md">
+            {/* Success header */}
+            <div className="bento-card p-8 text-center mb-6">
+              {isPaid ? (
+                <>
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                    <CheckCircle className="h-8 w-8 text-green-600" />
+                  </div>
+                  <h1 className="text-2xl font-bold text-card-foreground mb-2">
+                    Payment Confirmed!
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Your payment of <span className="font-semibold text-foreground">KES {order.product_price.toLocaleString()}</span> has been received. The funds are safely held in escrow.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <Smartphone className="h-8 w-8 text-primary animate-pulse" />
+                  </div>
+                  <h1 className="text-2xl font-bold text-card-foreground mb-2">
+                    Check Your Phone
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    An M-Pesa STK push has been sent to your phone. Enter your PIN to complete payment.
+                  </p>
+                  <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Waiting for payment confirmation...
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Order summary */}
+            <div className="bento-card p-6 mb-6">
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+                Order Summary
+              </h2>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Product</span>
+                  <span className="font-medium text-card-foreground">{order.product_name}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="font-medium text-card-foreground">KES {order.product_price.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Seller</span>
+                  <span className="font-medium text-card-foreground">{order.seller_name}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Order ID</span>
+                  <span className="font-mono text-xs text-card-foreground">{orderId}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className={`font-semibold ${isPaid ? 'text-green-600' : 'text-amber-500'}`}>
+                    {isPaid ? 'Paid' : 'Awaiting Payment'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Track order CTA */}
+            <div className="bento-card p-6 mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Package className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-card-foreground">Track Your Order</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Follow your order from payment to delivery
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href={`/track/${orderId}`}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity mb-3"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Go to Order Tracking
+              </Link>
+
+              <button
+                onClick={copyTrackingLink}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                <Copy className="h-4 w-4" />
+                {trackingCopied ? 'Copied!' : 'Copy Tracking Link'}
+              </button>
+
+              <p className="text-xs text-center text-muted-foreground mt-3">
+                Save this link to check your order status anytime
+              </p>
+            </div>
+
+            {/* What's next */}
+            <div className="rounded-lg border border-border bg-muted p-4">
+              <h3 className="text-sm font-semibold text-foreground mb-3">
+                What Happens Next?
+              </h3>
+              <ol className="space-y-2 text-xs text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${isPaid ? 'bg-green-500 text-white' : 'bg-primary text-primary-foreground'}`}>✓</span>
+                  {isPaid ? 'Payment received — funds held in escrow' : 'Complete M-Pesa payment on your phone'}
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">2</span>
+                  Seller ships your item
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">3</span>
+                  Confirm delivery on the tracking page
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">4</span>
+                  Funds released to seller — done!
+                </li>
+              </ol>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   /* ─── Already paid ───── */
   if (order.status !== 'pending') {
