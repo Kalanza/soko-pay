@@ -1,8 +1,10 @@
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 
-DATABASE_PATH = "soko_pay.db"
+# Use /tmp on Heroku (ephemeral filesystem) or local path
+DATABASE_PATH = os.getenv("DATABASE_PATH", "soko_pay.db")
 
 def init_db():
     """Initialize database with schema"""
