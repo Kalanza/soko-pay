@@ -3,31 +3,31 @@
 @tailwind utilities;
 
 :root {
-  /* Primary – Emerald green (trust, money, M-Pesa) */
-  --primary: 160 84% 39%;
+  /* Primary – M-Pesa Green (trust, money, growth) */
+  --primary: 158 64% 52%; /* #10b981 M-Pesa Green */
   --primary-foreground: 0 0% 100%;
 
-  /* Secondary – Slate blue (security, tech) */
-  --secondary: 217 91% 60%;
+  /* Secondary – Sophisticated Purple (premium, tech) */
+  --secondary: 262 83% 58%;
   --secondary-foreground: 0 0% 100%;
 
-  /* Accent – Amber (attention) */
+  /* Accent – Amber (warnings, pending) */
   --accent: 38 92% 50%;
   --accent-foreground: 0 0% 9%;
 
-  /* Neutrals */
-  --background: 0 0% 98%;
-  --foreground: 220 14% 10%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
+  /* Neutrals – Ultra clean white/gray */
+  --background: 0 0% 99%;
+  --foreground: 222 47% 11%;
+  --muted: 210 40% 98%;
+  --muted-foreground: 215 16% 47%;
   --card: 0 0% 100%;
-  --card-foreground: 220 14% 10%;
-  --border: 220 13% 91%;
-  --ring: 160 84% 39%;
-  --destructive: 0 72% 51%;
+  --card-foreground: 222 47% 11%;
+  --border: 214 32% 91%;
+  --ring: 158 64% 52%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --radius: 0.75rem;
+  --radius: 1rem;
 }
 
 * {
@@ -36,14 +36,53 @@
 
 body {
   color: hsl(var(--foreground));
-  background: hsl(var(--background));
+  background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+  background-attachment: fixed;
 }
 
-/* ── Utility classes ──────────────────────────────────────────────────── */
+/* ── Glassmorphism & Modern UI ────────────────────────────────────────── */
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Glassmorphism effect */
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .glass-dark {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Bento card styles */
+  .bento-card {
+    @apply rounded-2xl bg-card border border-border/50 shadow-bento transition-all duration-300;
+  }
+
+  .bento-card:hover {
+    @apply shadow-bento-hover border-border;
+  }
+
+  /* Trust badge glow */
+  .trust-glow {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+
+  /* Smooth gradient backgrounds */
+  .gradient-green {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  }
+
+  .gradient-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   }
 }
 
