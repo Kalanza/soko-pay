@@ -39,38 +39,38 @@ export default function WhatsAppShare({
     return (
       <button
         onClick={handleWhatsAppShare}
-        className=\"fixed bottom-6 right-6 h-16 w-16 rounded-full bg-[#25D366] text-white shadow-bento-hover hover:scale-110 transition-transform duration-200 flex items-center justify-center z-50 group\"
-        aria-label=\"Share on WhatsApp\"
+        className="fixed bottom-6 right-6 h-16 w-16 rounded-full bg-[#25D366] text-white shadow-bento-hover hover:scale-110 transition-transform duration-200 flex items-center justify-center z-50 group"
+        aria-label="Share on WhatsApp"
       >
-        <MessageCircle className=\"h-7 w-7 group-hover:animate-pulse\" />
+        <MessageCircle className="h-7 w-7 group-hover:animate-pulse" />
       </button>
     );
   }
 
   return (
-    <div className=\"flex gap-3\">
+    <div className="flex gap-3">
       {/* WhatsApp Share */}
       <button
         onClick={handleWhatsAppShare}
-        className=\"flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#25D366] text-white font-semibold hover:bg-[#20BA5A] transition-colors shadow-bento\"
+        className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#25D366] text-white font-semibold hover:bg-[#20BA5A] transition-colors shadow-bento"
       >
-        <MessageCircle className=\"h-5 w-5\" />
+        <MessageCircle className="h-5 w-5" />
         Share on WhatsApp
       </button>
 
       {/* Copy Link */}
       <button
         onClick={handleCopyLink}
-        className=\"px-6 py-3 rounded-xl border-2 border-border bg-card hover:bg-muted font-semibold transition-colors shadow-bento flex items-center gap-2\"
+        className="px-6 py-3 rounded-xl border-2 border-border bg-card hover:bg-muted font-semibold transition-colors shadow-bento flex items-center gap-2"
       >
         {copied ? (
           <>
-            <span className=\"text-primary-600\">✓</span>
-            <span className=\"text-primary-600\">Copied!</span>
+            <span className="text-primary-600">✓</span>
+            <span className="text-primary-600">Copied!</span>
           </>
         ) : (
           <>
-            <Share2 className=\"h-5 w-5\" />
+            <Share2 className="h-5 w-5" />
             <span>Copy Link</span>
           </>
         )}

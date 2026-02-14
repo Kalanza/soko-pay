@@ -91,54 +91,54 @@ export default function TrustScore({
 
   return (
     <div className={`bento-card p-4 ${config.bgColor} border ${config.borderColor} trust-glow`}>
-      <div className=\"flex items-center gap-4\">
+      <div className="flex items-center gap-4">
         {/* Circular Progress */}
         <div className={`relative ${sizes.container} flex-shrink-0`}>
-          <svg className=\"transform -rotate-90\" width=\"100%\" height=\"100%\">
+          <svg className="transform -rotate-90" width="100%" height="100%">
             {/* Background circle */}
             <circle
-              cx=\"50%\"
-              cy=\"50%\"
+              cx="50%"
+              cy="50%"
               r={sizes.radius}
-              stroke=\"currentColor\"
+              stroke="currentColor"
               strokeWidth={sizes.stroke}
-              fill=\"none\"
-              className=\"text-gray-200\"
+              fill="none"
+              className="text-gray-200"
             />
             {/* Progress circle */}
             <circle
-              cx=\"50%\"
-              cy=\"50%\"
+              cx="50%"
+              cy="50%"
               r={sizes.radius}
               stroke={config.color}
               strokeWidth={sizes.stroke}
-              fill=\"none\"
+              fill="none"
               strokeDasharray={circumference}
               strokeDashoffset={offset}
-              strokeLinecap=\"round\"
-              className=\"transition-all duration-1000 ease-out\"
+              strokeLinecap="round"
+              className="transition-all duration-1000 ease-out"
             />
           </svg>
           
           {/* Center icon */}
-          <div className=\"absolute inset-0 flex items-center justify-center\">
+          <div className="absolute inset-0 flex items-center justify-center">
             <Icon className={`${sizes.iconSize} ${config.textColor}`} />
           </div>
         </div>
 
         {/* Info */}
         {showLabel && (
-          <div className=\"flex-1 min-w-0\">
-            <div className=\"flex items-baseline gap-2\">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2">
               <h3 className={`font-bold ${sizes.scoreText} ${config.textColor}`}>
                 {100 - score}
               </h3>
-              <span className=\"text-muted-foreground text-sm\">/100</span>
+              <span className="text-muted-foreground text-sm">/100</span>
             </div>
             <p className={`font-semibold ${config.textColor} ${sizes.labelText}`}>
               {config.label}
             </p>
-            <p className=\"text-xs text-muted-foreground mt-0.5\">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {config.description}
             </p>
           </div>
@@ -146,8 +146,8 @@ export default function TrustScore({
       </div>
 
       {/* AI Badge */}
-      <div className=\"mt-3 flex items-center gap-1.5 text-xs text-muted-foreground\">
-        <Shield className=\"h-3 w-3\" />
+      <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Shield className="h-3 w-3" />
         <span>AI-Verified by Gemini</span>
       </div>
     </div>
