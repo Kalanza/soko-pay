@@ -70,7 +70,8 @@ async def pay_for_order(order_id: str, payment_request: PaymentRequest):
             amount=order["product_price"],
             phone_number=payment_request.buyer_phone,
             order_id=order_id,
-            description=f"Payment for {order['product_name']}"
+            description=f"Payment for {order['product_name']}",
+            customer_name=payment_request.buyer_name
         )
         
         if not payment_result.get("success"):

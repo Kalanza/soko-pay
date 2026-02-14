@@ -1,49 +1,59 @@
 import os
 import requests
 from typing import Optional
+from dotenv import load_dotenv
 
-PAYHERO_API_KEY = os.getenv("PAYHERO_API_KEY", "")
+load_dotenv()
+
+PAYHERO_AUTH_TOKEN = os.getenv("PAYHERO_AUTH_TOKEN", "")
+PAYHERO_CHANNEL_ID = int(os.getenv("PAYHERO_CHANNEL_ID", "5520"))
 PAYHERO_BASE_URL = "https://backend.payhero.co.ke/api/v2"
+
 
 def initiate_payment(
     amount: float,
     phone_number: str,
     order_id: str,
-    description: str = "Soko Pay Escrow Payment"
+    description: str = "Soko Pay Escrow Payment",
+    customer_name: str = "Customer"
 ) -> dict:
     """
     Initiate M-Pesa STK push via PayHero API.
-    
+
     Args:
         amount: Amount in KES
         phone_number: Kenya phone number (254XXXXXXXXX)
         order_id: Unique order identifier
         description: Payment description
-    
+        customer_name: Name of the customer
+
     Returns:
         dict: PayHero API response with transaction reference
-    
-    Raises:
-        Exception: If PayHero API call fails
     """
-    
-    if not PAYHERO_API_KEY:
-        raise Exception("PayHero API key not configured")
-    
+
+    if not PAYHERO_AUTH_TOKEN:
+        raise Exception("PayHero auth token not configured")
+
     headers = {
-        "Authorization": f"Bearer {PAYHERO_API_KEY}",
+        "Authorization": f"Basic {PAYHERO_AUTH_TOKEN}",
         "Content-Type": "application/json"
     }
-    
+
+    callback_url = os.getenv(
+        "PAYHERO_CALLBACK_URL",
+        f"{os.getenv('BACKEND_URL', 'http://localhost:8000')}/api/payhero/callback"
+    )
+
     payload = {
-        "amount": int(amount),  # PayHero expects integer
+        "amount": int(amount),
         "phone_number": phone_number,
-        "channel_id": int(os.getenv("PAYHERO_CHANNEL_ID", "1")),
-        "provider": "mpesa",
+        "channel_id": PAYHERO_CHANNEL_ID,
+        "provider": "m-pesa",
         "external_reference": order_id,
-        "callback_url": f"{os.getenv('API_BASE_URL', 'https://soko-pay.vercel.app')}/api/payhero/callback"
+        "customer_name": customer_name,
+        "callback_url": callback_url
     }
-    
+
     try:
         response = requests.post(
             f"{PAYHERO_BASE_URL}/payments",
@@ -51,69 +61,76 @@ def initiate_payment(
             json=payload,
             timeout=30
         )
-        
+
         response.raise_for_status()
-        
+
         data = response.json()
-        
+
         return {
-            "success": True,
+            "success": data.get("success", True),
             "reference": data.get("reference"),
+            "checkout_request_id": data.get("CheckoutRequestID"),
             "amount": amount,
             "phone": phone_number,
             "message": "STK push sent. Please check your phone to complete payment."
         }
-    
+
     except requests.exceptions.RequestException as e:
+        error_body = ""
+        if hasattr(e, 'response') and e.response is not None:
+            error_body = e.response.text
         return {
             "success": False,
             "error": str(e),
+            "error_detail": error_body,
             "message": "Failed to initiate payment. Please try again."
         }
+
 
 def verify_payment(reference: str) -> Optional[dict]:
     """
     Verify payment status from PayHero.
-    
+
     Args:
         reference: PayHero transaction reference
-    
+
     Returns:
         dict: Payment verification result or None if failed
     """
-    
-    if not PAYHERO_API_KEY:
+
+    if not PAYHERO_AUTH_TOKEN:
         return None
-    
+
     headers = {
-        "Authorization": f"Bearer {PAYHERO_API_KEY}",
+        "Authorization": f"Basic {PAYHERO_AUTH_TOKEN}",
         "Content-Type": "application/json"
     }
-    
+
     try:
         response = requests.get(
             f"{PAYHERO_BASE_URL}/payments/{reference}",
             headers=headers,
             timeout=15
         )
-        
+
         response.raise_for_status()
         return response.json()
-    
+
     except requests.exceptions.RequestException:
         return None
+
 
 def process_callback(callback_data: dict) -> dict:
     """
     Process PayHero payment callback.
-    
+
     Args:
         callback_data: Raw callback data from PayHero
-    
+
     Returns:
         dict: Processed callback information
     """
-    
+
     return {
         "reference": callback_data.get("reference"),
         "status": callback_data.get("status"),
