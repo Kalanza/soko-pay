@@ -17,6 +17,7 @@ import { createPaymentLink } from '@/lib/api';
 import QRCode from 'qrcode';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
+import WhatsAppShare from '@/components/WhatsAppShare';
 
 /* ─── Category Select ─────────────────────────────────────────────── */
 const CATEGORIES = [
@@ -113,7 +114,7 @@ export default function SellerDashboard() {
   };
 
   const inputClass =
-    'w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow';
+    'w-full rounded-xl border-2 border-border bg-white px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all hover:border-primary-200';
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -131,18 +132,17 @@ export default function SellerDashboard() {
 
           {/* Page heading */}
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
+            <h1 className="text-3xl font-bold text-foreground sm:text-4xl bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent">
               Create Payment Link
             </h1>
-            <p className="mt-1 text-muted-foreground">
-              Fill in your product details and share the secure link with your
-              buyer.
+            <p className="mt-2 text-base text-muted-foreground">
+              🔒 Fill in your product details and share the secure escrow link with your buyer.
             </p>
           </div>
 
           {/* ── Form ─────────────────────────────────────────── */}
           {!paymentLink ? (
-            <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+            <div className="bento-card p-8">
               {/* Step indicator */}
               <div className="flex items-center gap-3 mb-6 text-sm">
                 <span className="flex items-center gap-1.5 text-primary font-medium">
@@ -259,14 +259,17 @@ export default function SellerDashboard() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl gradient-green py-4 text-base font-bold text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-bento hover:shadow-bento-hover"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> Creating...
+                      <Loader2 className="h-5 w-5 animate-spin" /> Creating Link...
                     </>
                   ) : (
-                    'Create Payment Link'
+                    <>
+                      <LinkIcon className="h-5 w-5" />
+                      Create Secure Payment Link
+                    </>
                   )}
                 </button>
               </form>
@@ -275,47 +278,39 @@ export default function SellerDashboard() {
             /* ── Success State ─────────────────────────────── */
             <div className="space-y-6">
               {/* Success card */}
-              <div className="rounded-lg border-2 border-primary bg-primary/5 p-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <CheckCircle className="h-5 w-5 text-primary" />
-                  <h2 className="text-lg font-bold text-foreground">
+              <div className="bento-card bg-gradient-to-br from-primary-50 to-white border-2 border-primary/30 p-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-full bg-primary/10">
+                    <CheckCircle className="h-6 w-6 text-primary-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-foreground">
                     Payment Link Created!
                   </h2>
                 </div>
-                <p className="text-sm text-muted-foreground mb-5">
-                  Share this link with your buyer. Funds will be held in escrow
-                  until delivery is confirmed.
+                <p className="text-sm text-muted-foreground mb-6">
+                  🎉 Share this link with your buyer. Funds will be held in secure escrow until delivery is confirmed.
                 </p>
 
                 {/* Link display */}
-                <div className="rounded-md border border-border bg-card p-3 mb-4">
-                  <p className="text-xs text-muted-foreground mb-1">Payment Link</p>
-                  <p className="text-sm font-mono text-foreground break-all">
+                <div className="glass rounded-xl p-4 mb-6 backdrop-blur-sm">
+                  <p className="text-xs font-semibold text-primary-600 mb-2 uppercase tracking-wide">Your Payment Link</p>
+                  <p className="text-sm font-mono text-foreground break-all bg-white/50 rounded p-2">
                     {paymentLink}
                   </p>
                 </div>
 
-                {/* Action buttons */}
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={copyLink}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-secondary py-2.5 text-sm font-semibold text-secondary-foreground hover:opacity-90 transition-opacity"
-                  >
-                    <Copy className="h-4 w-4" />
-                    {copied ? 'Copied!' : 'Copy Link'}
-                  </button>
-                  <button
-                    onClick={shareOnWhatsApp}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
-                  >
-                    <Share2 className="h-4 w-4" /> WhatsApp
-                  </button>
-                </div>
+                {/* WhatsApp Share Component */}
+                <WhatsAppShare
+                  paymentLink={paymentLink}
+                  productName={formData.name}
+                  price={parseFloat(formData.price)}
+                  variant="button"
+                />
 
                 {/* Track order */}
                 <Link
                   href={`/track/${orderId}`}
-                  className="mt-4 flex items-center justify-center gap-2 w-full rounded-lg border border-border bg-card py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                  className="mt-4 flex items-center justify-center gap-2 w-full rounded-xl border-2 border-border bg-card py-3 text-sm font-semibold text-foreground hover:bg-muted hover:shadow-bento transition-all"
                 >
                   <ExternalLink className="h-4 w-4" /> Track This Order
                 </Link>
@@ -323,18 +318,20 @@ export default function SellerDashboard() {
 
               {/* QR Code */}
               {qrCode && (
-                <div className="rounded-lg border border-border bg-card p-6 text-center">
-                  <div className="flex items-center justify-center gap-2 mb-4">
-                    <QrCode className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold text-card-foreground">QR Code</h3>
+                <div className="bento-card p-8 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-6">
+                    <QrCode className="h-5 w-5 text-primary-600" />
+                    <h3 className="text-base font-bold text-card-foreground">Scan to Pay</h3>
                   </div>
-                  <img
-                    src={qrCode}
-                    alt="Payment QR Code"
-                    className="mx-auto w-56 h-56 rounded-md"
-                  />
-                  <p className="text-xs text-muted-foreground mt-3">
-                    Buyers can scan this to open the payment page
+                  <div className="inline-block p-4 bg-white rounded-xl shadow-bento">
+                    <img
+                      src={qrCode}
+                      alt="Payment QR Code"
+                      className="w-56 h-56 rounded-lg"
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-4">
+                    📱 Buyers can scan this QR code to open the payment page
                   </p>
                 </div>
               )}
@@ -355,9 +352,9 @@ export default function SellerDashboard() {
                     category: 'Other',
                   });
                 }}
-                className="w-full rounded-lg border border-border bg-card py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                className="w-full rounded-xl border-2 border-border bg-card py-3 text-sm font-semibold text-foreground hover:bg-muted hover:shadow-bento transition-all"
               >
-                Create Another Payment Link
+                + Create Another Payment Link
               </button>
             </div>
           )}

@@ -16,30 +16,7 @@ import { trackOrder, payForOrder } from '@/lib/api';
 import type { Order } from '@/lib/api';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
-
-/* ─── Risk Badge ──────────────────────────────────────────────────── */
-function RiskBadge({ score, level }: { score: number | null | undefined; level: string | null | undefined }) {
-  if (score === null || score === undefined) return null;
-
-  const isLow = (level === 'low' || score < 30);
-  const isMedium = (level === 'medium' || (score >= 30 && score < 70));
-
-  const config = isLow
-    ? { bg: 'bg-primary/10', border: 'border-primary/20', text: 'text-primary', icon: ShieldCheck, label: 'Low Risk' }
-    : isMedium
-    ? { bg: 'bg-accent/10', border: 'border-accent/20', text: 'text-accent', icon: ShieldAlert, label: 'Moderate Risk' }
-    : { bg: 'bg-destructive/10', border: 'border-destructive/20', text: 'text-destructive', icon: AlertTriangle, label: 'High Risk' };
-
-  return (
-    <div className={`flex items-center gap-2 rounded-md border ${config.border} ${config.bg} px-3 py-2`}>
-      <config.icon className={`h-4 w-4 ${config.text}`} />
-      <div>
-        <p className={`text-sm font-medium ${config.text}`}>{config.label}</p>
-        <p className="text-xs text-muted-foreground">AI fraud score: {score}/100</p>
-      </div>
-    </div>
-  );
-}
+import TrustScore from '@/components/TrustScore';
 
 /* ─── Page ─────────────────────────────────────────────────────────── */
 export default function BuyPage() {
@@ -168,44 +145,51 @@ export default function BuyPage() {
           </div>
 
           {/* Product card */}
-          <div className="rounded-lg border border-border bg-card p-6 mb-6 shadow-sm">
+          <div className="bento-card p-8 mb-6">
             <div className="flex items-start justify-between mb-4">
               <div>
                 {order.product_category && order.product_category !== 'Other' && (
-                  <span className="inline-block rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground mb-2">
+                  <span className="inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-600 mb-2">
                     {order.product_category}
                   </span>
                 )}
-                <h1 className="text-xl font-bold text-card-foreground">
+                <h1 className="text-2xl font-bold text-card-foreground">
                   {order.product_name}
                 </h1>
               </div>
             </div>
 
-            <p className="text-3xl font-bold text-primary mb-4">
+            <p className="text-4xl font-bold text-primary-600 mb-6">
               KES {order.product_price.toLocaleString()}
             </p>
 
-            <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+            <p className="text-sm text-muted-foreground leading-relaxed mb-6">
               {order.product_description}
             </p>
 
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="font-medium text-card-foreground">Seller:</span>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+              <span className="font-semibold text-card-foreground">Seller:</span>
               {order.seller_name}
             </div>
 
-            {/* Risk badge */}
-            <div className="mt-4">
-              <RiskBadge score={order.fraud_risk_score} level={order.fraud_risk_level} />
-            </div>
+            {/* Trust Score Widget */}
+            {order.fraud_risk_score !== null && order.fraud_risk_score !== undefined && (
+              <TrustScore 
+                score={order.fraud_risk_score} 
+                level={order.fraud_risk_level} 
+                size="md"
+                showLabel={true}
+              />
+            )}
           </div>
 
           {/* Payment form */}
-          <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-5">
-              <Smartphone className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-bold text-card-foreground">
+          <div className="bento-card p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 rounded-full bg-primary-50">
+                <Smartphone className="h-6 w-6 text-primary-600" />
+              </div>
+              <h2 className="text-xl font-bold text-card-foreground">
                 Pay with M-Pesa
               </h2>
             </div>
