@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime
 from app.models.order import PaymentRequest, PaymentResponse, DeliveryConfirmation, OrderStatus
 from app.services.payhero import initiate_payment, process_callback
+from app.services.ai_fraud import check_fraud_risk
+from app.services.gis_verification import verify_delivery_location
+from app.utils.risk_scoring import calculate_composite_risk
 from database import get_order_by_id, update_order_status, log_transaction, get_db
 
 router = APIRouter()
@@ -24,7 +27,43 @@ async def pay_for_order(order_id: str, payment_request: PaymentRequest):
             status_code=400,
             detail=f"Order cannot be paid. Current status: {order['status']}"
         )
-    
+
+    # AI Fraud Check - analyze transaction before processing payment
+    fraud_check = await check_fraud_risk({
+        "product_name": order["product_name"],
+        "price": order["product_price"],
+        "description": order.get("product_description", ""),
+        "seller_phone": order["seller_phone"]
+    })
+
+    # Composite risk scoring (AI + seller reputation + transaction velocity)
+    composite = calculate_composite_risk(
+        ai_risk_score=fraud_check["risk_score"],
+        seller_reputation=50,  # Default neutral for new sellers
+        transaction_velocity=0
+    )
+
+    # Store fraud assessment on the order
+    update_order_status(
+        order_id, order["status"],
+        fraud_risk_score=composite["final_score"],
+        fraud_risk_level=fraud_check["risk_level"],
+        fraud_flags=",".join(fraud_check.get("flags", []))
+    )
+
+    # Act on composite risk recommendation
+    if composite["recommendation"] == "block":
+        update_order_status(order_id, "flagged")
+        log_transaction(
+            order_id, "fraud_blocked",
+            status="blocked",
+            metadata=f"{fraud_check['reason']} | Composite score: {composite['final_score']}"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Transaction blocked for security: {fraud_check['reason']}"
+        )
+
     # Initiate payment via PayHero
     try:
         payment_result = initiate_payment(
@@ -122,8 +161,36 @@ async def payhero_callback(request: Request):
                 status="success"
             )
             
-            # TODO: Trigger fraud detection (Dev 2 will implement)
-            # await trigger_fraud_detection(order_id)
+            # Post-payment fraud detection (runs after payment confirms)
+            fraud_check = await check_fraud_risk({
+                "product_name": order["product_name"],
+                "price": order["product_price"],
+                "description": order.get("product_description", ""),
+                "seller_phone": order["seller_phone"]
+            })
+
+            # Composite risk scoring
+            composite = calculate_composite_risk(
+                ai_risk_score=fraud_check["risk_score"],
+                seller_reputation=50,
+                transaction_velocity=0
+            )
+
+            # Store composite fraud results on the order
+            update_order_status(
+                order_id, "paid",
+                fraud_risk_score=composite["final_score"],
+                fraud_risk_level=fraud_check["risk_level"],
+                fraud_flags=",".join(fraud_check.get("flags", []))
+            )
+
+            # Flag paid orders that need review or blocking
+            if composite["recommendation"] in ("review", "block"):
+                log_transaction(
+                    order_id, "fraud_flagged_post_payment",
+                    status="flagged",
+                    metadata=f"{fraud_check['reason']} | Composite score: {composite['final_score']}"
+                )
         
         return {"status": "success", "message": "Callback processed"}
     
@@ -187,11 +254,28 @@ async def confirm_delivery(order_id: str, confirmation: DeliveryConfirmation):
             detail=f"Order cannot be delivered. Must be shipped first. Current status: {order['status']}"
         )
     
-    # TODO: GPS verification for high-value orders (Dev 2 will implement)
-    # if order["product_price"] > 10000 and confirmation.latitude and confirmation.longitude:
-    #     gps_verified = await verify_gps_proximity(order_id, confirmation.latitude, confirmation.longitude)
-    #     if not gps_verified:
-    #         raise HTTPException(status_code=400, detail="GPS verification failed")
+    # GPS verification for high-value orders (>KES 10,000)
+    gps_result = None
+    if order["product_price"] > 10000:
+        if not confirmation.latitude or not confirmation.longitude:
+            raise HTTPException(
+                status_code=400,
+                detail="GPS location required for items over KES 10,000"
+            )
+
+        # Check if seller location is available
+        if order.get("seller_location_lat") and order.get("seller_location_lon"):
+            gps_result = verify_delivery_location(
+                seller_coords=(order["seller_location_lat"], order["seller_location_lon"]),
+                buyer_coords=(confirmation.latitude, confirmation.longitude),
+                max_distance_km=1.0
+            )
+
+            if not gps_result["verified"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"GPS verification failed: {gps_result['message']}"
+                )
     
     # Update status
     update_order_status(order_id, "delivered")

@@ -5,6 +5,7 @@ from database import init_db
 # Import routers
 from app.routes.orders import router as orders_router
 from app.routes.payments import router as payments_router
+from app.routes.disputes import router as disputes_router
 
 app = FastAPI(
     title="Soko Pay API",
@@ -52,6 +53,7 @@ async def root():
 # Include routers
 app.include_router(orders_router, prefix="/api", tags=["orders"])
 app.include_router(payments_router, prefix="/api", tags=["payments"])
+app.include_router(disputes_router, prefix="/api", tags=["disputes"])
 
 if __name__ == "__main__":
     import uvicorn
