@@ -92,7 +92,7 @@ def get_order_by_id(order_id: str):
             return dict(row)
         return None
 
-def create_order(order_data: dict):
+def create_order(**order_data):
     """Create a new order"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -104,7 +104,7 @@ def create_order(order_data: dict):
                 payment_link, status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            order_data['id'],
+            order_data['order_id'],
             order_data['product_name'],
             order_data['product_price'],
             order_data['product_description'],
@@ -117,7 +117,7 @@ def create_order(order_data: dict):
             'pending'
         ))
         conn.commit()
-        return order_data['id']
+        return order_data['order_id']
 
 def update_order_status(order_id: str, status: str, **kwargs):
     """Update order status and additional fields"""
@@ -168,8 +168,9 @@ def update_order_status(order_id: str, status: str, **kwargs):
         
         return cursor.rowcount > 0
 
-def log_transaction(order_id: str, trans_type: str, **kwargs):
+def log_transaction(order_id: str, transaction_type: str = None, trans_type: str = None, **kwargs):
     """Log a transaction"""
+    tx_type = transaction_type or trans_type or "unknown"
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -178,10 +179,10 @@ def log_transaction(order_id: str, trans_type: str, **kwargs):
             ) VALUES (?, ?, ?, ?, ?, ?)
         """, (
             order_id,
-            trans_type,
+            tx_type,
             kwargs.get('amount'),
             kwargs.get('status'),
-            kwargs.get('payhero_transaction_id'),
+            kwargs.get('payhero_transaction_id') or kwargs.get('payhero_ref'),
             kwargs.get('metadata')
         ))
         conn.commit()
