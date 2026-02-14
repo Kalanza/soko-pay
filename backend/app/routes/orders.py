@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 import uuid
+import os
 from app.models.order import Product, Order, CreatePaymentLinkResponse, OrderStatus
 from database import create_order, get_order_by_id, get_db
 
@@ -18,8 +19,9 @@ async def create_payment_link(product: Product):
         # Generate unique order ID
         order_id = f"SP{uuid.uuid4().hex[:12].upper()}"
         
-        # Create payment link
-        payment_link = f"https://soko-pay.vercel.app/pay/{order_id}"
+        # Create payment link using configured frontend URL
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3001")
+        payment_link = f"{frontend_url}/pay/{order_id}"
         
         # Extract location if provided
         seller_lat = product.seller_location.latitude if product.seller_location else None
