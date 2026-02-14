@@ -42,20 +42,19 @@ async def pay_for_order(order_id: str, payment_request: PaymentRequest):
             )
         
         # Update order with buyer details and PayHero reference
-        conn = next(get_db())
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE orders 
-            SET buyer_phone = ?, buyer_name = ?, payhero_ref = ?
-            WHERE id = ?
-        """, (
-            payment_request.buyer_phone,
-            payment_request.buyer_name,
-            payment_result.get("reference"),
-            order_id
-        ))
-        conn.commit()
-        conn.close()
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE orders 
+                SET buyer_phone = ?, buyer_name = ?, payhero_ref = ?
+                WHERE id = ?
+            """, (
+                payment_request.buyer_phone,
+                payment_request.buyer_name,
+                payment_result.get("reference"),
+                order_id
+            ))
+            conn.commit()
         
         # Log transaction
         log_transaction(
@@ -88,7 +87,10 @@ async def payhero_callback(request: Request):
         
         # Process callback
         processed = process_callback(callback_data)
-        order_id = processed.get("external_ref")
+        external_ref = processed.get("external_ref", "")
+        
+        # Strip SOKO- prefix if present (we add it when sending to PayHero)
+        order_id = external_ref.replace("SOKO-", "") if external_ref else None
         
         if not order_id:
             return {"status": "error", "message": "No order ID in callback"}
@@ -103,15 +105,14 @@ async def payhero_callback(request: Request):
             update_order_status(order_id, "paid")
             
             # Update paid_at timestamp
-            conn = next(get_db())
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE orders 
-                SET paid_at = ?
-                WHERE id = ?
-            """, (datetime.now().isoformat(), order_id))
-            conn.commit()
-            conn.close()
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE orders 
+                    SET paid_at = ?
+                    WHERE id = ?
+                """, (datetime.now().isoformat(), order_id))
+                conn.commit()
             
             # Log successful transaction
             log_transaction(
@@ -119,12 +120,8 @@ async def payhero_callback(request: Request):
                 transaction_type="payment_completed",
                 amount=processed.get("amount"),
                 payhero_ref=processed.get("reference"),
-                mpesa_ref=processed.get("mpesa_ref"),
                 status="success"
             )
-            
-            # TODO: Trigger fraud detection (Dev 2 will implement)
-            # await trigger_fraud_detection(order_id)
         
         return {"status": "success", "message": "Callback processed"}
     
@@ -153,15 +150,14 @@ async def mark_as_shipped(order_id: str):
     update_order_status(order_id, "shipped")
     
     # Update shipped_at timestamp
-    conn = next(get_db())
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE orders 
-        SET shipped_at = ?
-        WHERE id = ?
-    """, (datetime.now().isoformat(), order_id))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE orders 
+            SET shipped_at = ?
+            WHERE id = ?
+        """, (datetime.now().isoformat(), order_id))
+        conn.commit()
     
     return {
         "message": "Order marked as shipped",
@@ -198,14 +194,14 @@ async def confirm_delivery(order_id: str, confirmation: DeliveryConfirmation):
     update_order_status(order_id, "delivered")
     
     # Update delivered_at timestamp
-    conn = next(get_db())
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE orders 
-        SET delivered_at = ?
-        WHERE id = ?
-    """, (datetime.now().isoformat(), order_id))
-    conn.commit()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE orders 
+            SET delivered_at = ?
+            WHERE id = ?
+        """, (datetime.now().isoformat(), order_id))
+        conn.commit()
     
     # Mark as completed (funds released)
     update_order_status(order_id, "completed")
@@ -222,8 +218,6 @@ async def confirm_delivery(order_id: str, confirmation: DeliveryConfirmation):
         status="success",
         metadata=f"Platform fee: {platform_fee} KES"
     )
-    
-    conn.close()
     
     return {
         "message": "Delivery confirmed. Funds released to seller.",
