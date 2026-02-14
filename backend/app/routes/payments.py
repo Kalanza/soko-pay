@@ -4,6 +4,7 @@ from app.models.order import PaymentRequest, PaymentResponse, DeliveryConfirmati
 from app.services.payhero import initiate_payment, process_callback
 from app.services.ai_fraud import check_fraud_risk
 from app.services.gis_verification import verify_delivery_location
+from app.utils.risk_scoring import calculate_composite_risk
 from database import get_order_by_id, update_order_status, log_transaction, get_db
 
 router = APIRouter()
@@ -35,21 +36,28 @@ async def pay_for_order(order_id: str, payment_request: PaymentRequest):
         "seller_phone": order["seller_phone"]
     })
 
+    # Composite risk scoring (AI + seller reputation + transaction velocity)
+    composite = calculate_composite_risk(
+        ai_risk_score=fraud_check["risk_score"],
+        seller_reputation=50,  # Default neutral for new sellers
+        transaction_velocity=0
+    )
+
     # Store fraud assessment on the order
     update_order_status(
         order_id, order["status"],
-        fraud_risk_score=fraud_check["risk_score"],
+        fraud_risk_score=composite["final_score"],
         fraud_risk_level=fraud_check["risk_level"],
         fraud_flags=",".join(fraud_check.get("flags", []))
     )
 
-    # Block high-risk transactions
-    if fraud_check["risk_score"] > 80:
+    # Act on composite risk recommendation
+    if composite["recommendation"] == "block":
         update_order_status(order_id, "flagged")
         log_transaction(
             order_id, "fraud_blocked",
             status="blocked",
-            metadata=fraud_check["reason"]
+            metadata=f"{fraud_check['reason']} | Composite score: {composite['final_score']}"
         )
         raise HTTPException(
             status_code=400,
@@ -161,20 +169,27 @@ async def payhero_callback(request: Request):
                 "seller_phone": order["seller_phone"]
             })
 
-            # Store fraud results on the order
+            # Composite risk scoring
+            composite = calculate_composite_risk(
+                ai_risk_score=fraud_check["risk_score"],
+                seller_reputation=50,
+                transaction_velocity=0
+            )
+
+            # Store composite fraud results on the order
             update_order_status(
                 order_id, "paid",
-                fraud_risk_score=fraud_check["risk_score"],
+                fraud_risk_score=composite["final_score"],
                 fraud_risk_level=fraud_check["risk_level"],
                 fraud_flags=",".join(fraud_check.get("flags", []))
             )
 
-            # Flag paid orders that are high-risk for manual review
-            if fraud_check["risk_score"] > 70:
+            # Flag paid orders that need review or blocking
+            if composite["recommendation"] in ("review", "block"):
                 log_transaction(
                     order_id, "fraud_flagged_post_payment",
                     status="flagged",
-                    metadata=fraud_check["reason"]
+                    metadata=f"{fraud_check['reason']} | Composite score: {composite['final_score']}"
                 )
         
         return {"status": "success", "message": "Callback processed"}
