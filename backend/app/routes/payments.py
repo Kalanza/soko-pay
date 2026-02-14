@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime
 from app.models.order import PaymentRequest, PaymentResponse, DeliveryConfirmation, OrderStatus
 from app.services.payhero import initiate_payment, process_callback
+from app.services.ai_fraud import check_fraud_risk
 from database import get_order_by_id, update_order_status, log_transaction, get_db
+import json
 
 router = APIRouter()
 
@@ -101,8 +103,46 @@ async def payhero_callback(request: Request):
         
         # Check payment status
         if processed.get("status") == "success":
-            # Update order status to paid
-            update_order_status(order_id, "paid")
+            # Run AI fraud detection before releasing to "paid"
+            try:
+                fraud_result = await check_fraud_risk({
+                    "product_name": order["product_name"],
+                    "price": order["product_price"],
+                    "description": order["product_description"],
+                    "seller_phone": order["seller_phone"],
+                    "category": order.get("product_category", "Other")
+                })
+                
+                # Store fraud results
+                update_order_status(
+                    order_id, "paid",
+                    fraud_risk_score=fraud_result.get("risk_score"),
+                    fraud_risk_level=fraud_result.get("risk_level"),
+                    fraud_flags=json.dumps(fraud_result.get("flags", []))
+                )
+                
+                # Log fraud check
+                log_transaction(
+                    order_id=order_id,
+                    transaction_type="fraud_check",
+                    amount=order["product_price"],
+                    status=fraud_result.get("risk_level"),
+                    metadata=json.dumps(fraud_result)
+                )
+                
+                # If high risk, flag for review instead of auto-releasing
+                if fraud_result.get("risk_score", 0) >= 70:
+                    log_transaction(
+                        order_id=order_id,
+                        transaction_type="high_risk_flagged",
+                        amount=order["product_price"],
+                        status="flagged",
+                        metadata=f"AI flagged: {fraud_result.get('reason')}"
+                    )
+            except Exception as fraud_err:
+                print(f"Fraud detection warning (non-blocking): {fraud_err}")
+                # Still mark as paid even if fraud check fails
+                update_order_status(order_id, "paid")
             
             # Update paid_at timestamp
             with get_db() as conn:

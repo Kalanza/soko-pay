@@ -2,8 +2,10 @@ from fastapi import APIRouter, HTTPException
 from datetime import datetime
 import uuid
 import os
+import json
 from app.models.order import Product, Order, CreatePaymentLinkResponse, OrderStatus
-from database import create_order, get_order_by_id, get_db
+from database import create_order, get_order_by_id, get_db, update_order_status
+from app.services.ai_fraud import check_fraud_risk
 
 router = APIRouter()
 
@@ -43,6 +45,26 @@ async def create_payment_link(product: Product):
         
         if not order:
             raise HTTPException(status_code=500, detail="Failed to create order")
+        
+        # Run Gemini AI fraud detection
+        try:
+            fraud_result = await check_fraud_risk({
+                "product_name": product.name,
+                "price": product.price,
+                "description": product.description,
+                "seller_phone": product.seller_phone,
+                "category": product.category
+            })
+            
+            # Store fraud results in database
+            update_order_status(
+                order_id, "pending",
+                fraud_risk_score=fraud_result.get("risk_score"),
+                fraud_risk_level=fraud_result.get("risk_level"),
+                fraud_flags=json.dumps(fraud_result.get("flags", []))
+            )
+        except Exception as fraud_err:
+            print(f"Fraud detection warning (non-blocking): {fraud_err}")
         
         return CreatePaymentLinkResponse(
             order_id=order_id,
@@ -87,6 +109,38 @@ async def track_order(order_id: str):
         shipped_at=order["shipped_at"],
         delivered_at=order["delivered_at"]
     )
+
+@router.post("/fraud-check/{order_id}")
+async def fraud_check(order_id: str):
+    """
+    Run AI fraud detection on an existing order.
+    
+    Returns risk score, risk level, reason, and flags.
+    """
+    order = get_order_by_id(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    fraud_result = await check_fraud_risk({
+        "product_name": order["product_name"],
+        "price": order["product_price"],
+        "description": order["product_description"],
+        "seller_phone": order["seller_phone"],
+        "category": order.get("product_category", "Other")
+    })
+    
+    # Update order with fraud results
+    update_order_status(
+        order_id, order["status"],
+        fraud_risk_score=fraud_result.get("risk_score"),
+        fraud_risk_level=fraud_result.get("risk_level"),
+        fraud_flags=json.dumps(fraud_result.get("flags", []))
+    )
+    
+    return {
+        "order_id": order_id,
+        "fraud_detection": fraud_result
+    }
 
 @router.get("/orders/{order_id}/qr")
 async def get_qr_code(order_id: str):
