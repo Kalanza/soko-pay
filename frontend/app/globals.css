@@ -31,12 +31,12 @@
 }
 
 * {
-  border-color: hsl(var(--border));
+  border-color: hsl(var(--border) / 1);
 }
 
 body {
-  color: hsl(var(--foreground));
-  background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%);
+  color: hsl(var(--foreground) / 1);
+  background: linear-gradient(135deg, hsl(var(--background) / 1) 0%, hsl(var(--muted) / 1) 100%);
   background-attachment: fixed;
 }
 
