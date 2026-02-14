@@ -3,25 +3,75 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primary – Emerald green (trust, money, M-Pesa) */
+  --primary: 160 84% 39%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary – Slate blue (security, tech) */
+  --secondary: 217 91% 60%;
+  --secondary-foreground: 0 0% 100%;
+
+  /* Accent – Amber (attention) */
+  --accent: 38 92% 50%;
+  --accent-foreground: 0 0% 9%;
+
+  /* Neutrals */
+  --background: 0 0% 98%;
+  --foreground: 220 14% 10%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 14% 10%;
+  --border: 220 13% 91%;
+  --ring: 160 84% 39%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  --radius: 0.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: hsl(var(--border));
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
 }
+
+/* ── Utility classes ──────────────────────────────────────────────────── */
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* ── Smooth scroll ────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Focus ring ───────────────────────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: calc(var(--radius) * 0.5);
+}
+
+/* ── Pulse animation for active timeline step ─────────────────────────── */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 hsla(var(--primary), 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px hsla(var(--primary), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsla(var(--primary), 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
