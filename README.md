@@ -277,6 +277,125 @@ GET    /metrics                      System metrics
 
 ---
 
+---
+
+## 📊 Database Schema
+
+### Orders Table
+```sql
+CREATE TABLE orders (
+    id TEXT PRIMARY KEY,
+    product_name TEXT NOT NULL,
+    product_price REAL NOT NULL,
+    product_description TEXT,
+    product_category TEXT,
+    seller_phone TEXT NOT NULL,
+    seller_name TEXT NOT NULL,
+    buyer_phone TEXT,
+    buyer_name TEXT,
+    status TEXT DEFAULT 'pending',
+    payment_link TEXT,
+    payhero_ref TEXT,
+    fraud_risk_score INTEGER,
+    fraud_risk_level TEXT,
+    fraud_flags TEXT,
+    seller_location_lat REAL,
+    seller_location_lon REAL,
+    buyer_location_lat REAL,
+    buyer_location_lon REAL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    paid_at TEXT,
+    shipped_at TEXT,
+    delivered_at TEXT
+)
+```
+
+### Transactions Table
+```sql
+CREATE TABLE transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT NOT NULL,
+    transaction_type TEXT NOT NULL,
+    amount REAL,
+    payhero_ref TEXT,
+    mpesa_ref TEXT,
+    status TEXT,
+    metadata TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+### Disputes Table
+```sql
+CREATE TABLE disputes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id TEXT NOT NULL,
+    raised_by TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    evidence TEXT,
+    status TEXT DEFAULT 'pending',
+    resolution TEXT,
+    resolved_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+---
+
+## 📝 Example API Usage
+
+### 1. Create Payment Link (Seller)
+```bash
+curl -X POST http://localhost:8000/api/create-payment-link \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Nike Air Max",
+    "price": 4500,
+    "description": "Brand new shoes, size 42",
+    "seller_phone": "254712345678",
+    "seller_name": "Brian Kipchoge",
+    "category": "Shoes"
+  }'
+```
+
+Response:
+```json
+{
+  "order_id": "SP1A2B3C4D5E6F",
+  "payment_link": "https://soko-pay.vercel.app/pay/SP1A2B3C4D5E6F",
+  "message": "Payment link created successfully..."
+}
+```
+
+### 2. Pay for Order (Buyer)
+```bash
+curl -X POST http://localhost:8000/api/pay/SP1A2B3C4D5E6F \
+  -H "Content-Type: application/json" \
+  -d '{
+    "buyer_phone": "254722334455",
+    "buyer_name": "Mercy Wanjiru"
+  }'
+```
+
+Response:
+```json
+{
+  "message": "STK push sent. Check your phone...",
+  "order_id": "SP1A2B3C4D5E6F",
+  "payhero_response": {
+    "success": true,
+    "reference": "PH123456"
+  }
+}
+```
+
+### 3. Track Order
+```bash
+curl http://localhost:8000/api/track/SP1A2B3C4D5E6F
+```
+
+---
+
 ## 🧪 Testing
 
 ### Backend Tests
@@ -296,6 +415,12 @@ npm test
 # Test complete flow
 python scripts/test_flow.py
 ```
+
+### Testing with PayHero
+1. Get test credentials from PayHero dashboard
+2. Use test M-Pesa number: `254712345678`
+3. Default PIN: `1234` (in test mode)
+4. Callback URL must be publicly accessible (use ngrok for local testing)
 
 ---
 

@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from datetime import datetime
 import uuid
 import os
 import json
-from app.models.order import Product, Order, CreatePaymentLinkResponse, OrderStatus
+import shutil
+from pathlib import Path
+from app.models.order import Product, Order, CreatePaymentLinkResponse, OrderStatus, PhotoUploadResponse
 from database import create_order, get_order_by_id, get_db, update_order_status
 from app.services.ai_fraud import check_fraud_risk
 
@@ -29,6 +31,9 @@ async def create_payment_link(product: Product):
         seller_lat = product.seller_location.latitude if product.seller_location else None
         seller_lon = product.seller_location.longitude if product.seller_location else None
         
+        # Convert photos list to JSON string for storage
+        product_photos_json = json.dumps(product.photos) if product.photos else None
+        
         # Save order to database
         order = create_order(
             order_id=order_id,
@@ -40,7 +45,8 @@ async def create_payment_link(product: Product):
             seller_name=product.seller_name,
             payment_link=payment_link,
             seller_location_lat=seller_lat,
-            seller_location_lon=seller_lon
+            seller_location_lon=seller_lon,
+            product_photos=product_photos_json
         )
         
         if not order:
@@ -160,3 +166,94 @@ async def get_qr_code(order_id: str):
         "order_id": order_id,
         "message": "Scan this QR code to pay"
     }
+
+@router.post("/upload-photo", response_model=PhotoUploadResponse)
+async def upload_product_photo(file: UploadFile = File(...)):
+    """
+    Upload a product photo for a seller's listing.
+    
+    Supports: JPG, PNG, WebP (max 5MB each)
+    Returns: Photo URL/path to use in create-payment-link
+    
+    Example usage:
+    1. Upload photo: POST /api/upload-photo -> returns photo_url
+    2. Use photo_url in Product.photos: [photo_url, ...]
+    3. Create payment link with photos
+    """
+    try:
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/png", "image/webp"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid file type. Allowed: JPG, PNG, WebP. Got: {file.content_type}"
+            )
+        
+        # Read file content
+        content = await file.read()
+        file_size_bytes = len(content)
+        
+        # Validate file size (max 5MB)
+        max_size_bytes = 5 * 1024 * 1024
+        if file_size_bytes > max_size_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large: {file_size_bytes / 1024 / 1024:.1f}MB (max 5MB)"
+            )
+        
+        # Create uploads directory if it doesn't exist
+        uploads_dir = Path("uploads/products")
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        file_ext = file.filename.split('.')[-1].lower()
+        unique_filename = f"{uuid.uuid4().hex}_{datetime.utcnow().timestamp()}.{file_ext}"
+        file_path = uploads_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            f.write(content)
+        
+        # Return URL path (relative path for serving)
+        photo_url = f"/uploads/products/{unique_filename}"
+        
+        return PhotoUploadResponse(
+            status="success",
+            message=f"Photo uploaded successfully",
+            photo_url=photo_url,
+            file_size_kb=round(file_size_bytes / 1024, 2)
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading photo: {str(e)}")
+
+@router.get("/uploads/products/{filename}")
+async def serve_product_photo(filename: str):
+    """
+    Serve uploaded product photos.
+    
+    Called when frontend displays product images.
+    Example: GET /api/uploads/products/abc123.jpg
+    """
+    try:
+        file_path = Path("uploads/products") / filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Photo not found")
+        
+        # Security: Ensure the file is within the uploads directory
+        if not str(file_path.resolve()).startswith(str(Path("uploads/products").resolve())):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # For production, you'd return a FileResponse
+        # For now, return file info
+        return {
+            "filename": filename,
+            "file_path": str(file_path),
+            "exists": file_path.exists()
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error serving photo: {str(e)}")

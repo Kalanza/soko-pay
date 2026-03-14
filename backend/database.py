@@ -31,6 +31,7 @@ def init_db():
             fraud_risk_score INTEGER,
             fraud_risk_level TEXT,
             fraud_flags TEXT,
+            product_photos TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             paid_at TIMESTAMP,
             shipped_at TIMESTAMP,
@@ -63,6 +64,39 @@ def init_db():
             status TEXT DEFAULT 'pending',
             resolved_at TIMESTAMP,
             resolution TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders(id)
+        )
+    """)
+    
+    # Location tracking table for real-time tracking
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS location_tracking (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT NOT NULL,
+            tracker_type TEXT NOT NULL,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            accuracy REAL,
+            speed REAL,
+            heading REAL,
+            address TEXT,
+            distance_from_seller REAL,
+            metadata TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (order_id) REFERENCES orders(id)
+        )
+    """)
+    
+    # Location history summary for analytics
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS location_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id TEXT NOT NULL,
+            event TEXT NOT NULL,
+            latitude REAL,
+            longitude REAL,
+            description TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (order_id) REFERENCES orders(id)
         )
@@ -101,8 +135,8 @@ def create_order(**order_data):
                 id, product_name, product_price, product_description,
                 product_category, seller_phone, seller_name,
                 seller_location_lat, seller_location_lon,
-                payment_link, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payment_link, product_photos, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             order_data['order_id'],
             order_data['product_name'],
@@ -114,6 +148,7 @@ def create_order(**order_data):
             order_data.get('seller_location_lat'),
             order_data.get('seller_location_lon'),
             order_data['payment_link'],
+            order_data.get('product_photos'),  # JSON string of photos list
             'pending'
         ))
         conn.commit()
@@ -186,6 +221,88 @@ def log_transaction(order_id: str, transaction_type: str = None, trans_type: str
             kwargs.get('metadata')
         ))
         conn.commit()
+
+def log_location(order_id: str, tracker_type: str, latitude: float, longitude: float, **kwargs):
+    """Log a location update for real-time tracking"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO location_tracking (
+                order_id, tracker_type, latitude, longitude, accuracy, 
+                speed, heading, address, distance_from_seller, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            order_id,
+            tracker_type,
+            latitude,
+            longitude,
+            kwargs.get('accuracy'),
+            kwargs.get('speed'),
+            kwargs.get('heading'),
+            kwargs.get('address'),
+            kwargs.get('distance_from_seller'),
+            kwargs.get('metadata')
+        ))
+        conn.commit()
+        return cursor.lastrowid
+
+def get_location_history(order_id: str, limit: int = 50):
+    """Get location history for an order"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM location_tracking 
+            WHERE order_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT ?
+        """, (order_id, limit))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+def get_latest_location(order_id: str, tracker_type: str = None):
+    """Get the latest location for an order"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if tracker_type:
+            cursor.execute("""
+                SELECT * FROM location_tracking 
+                WHERE order_id = ? AND tracker_type = ?
+                ORDER BY created_at DESC 
+                LIMIT 1
+            """, (order_id, tracker_type))
+        else:
+            cursor.execute("""
+                SELECT * FROM location_tracking 
+                WHERE order_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            """, (order_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def log_location_event(order_id: str, event: str, latitude: float = None, longitude: float = None, description: str = None):
+    """Log a location event (like 'delivery_started', 'delivery_completed')"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO location_history (
+                order_id, event, latitude, longitude, description
+            ) VALUES (?, ?, ?, ?, ?)
+        """, (order_id, event, latitude, longitude, description))
+        conn.commit()
+        return cursor.lastrowid
+
+def get_location_events(order_id: str):
+    """Get all location events for an order"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM location_history 
+            WHERE order_id = ? 
+            ORDER BY created_at ASC
+        """, (order_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
 
 # Initialize database on import
 if __name__ == "__main__":
